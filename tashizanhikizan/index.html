@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>たしざん・ひきざん</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#ff6b9d">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
+    background:linear-gradient(135deg,#ffe66d,#ff9ff3 50%,#74d7ff);
+    font-family:"Hiragino Maru Gothic ProN","Yu Gothic","Meiryo",sans-serif;color:#444}
+  .card{width:min(94vw,420px);background:#fff;border-radius:28px;padding:20px;margin:12px 0;
+    box-shadow:0 10px 0 rgba(0,0,0,.12);border:5px solid #ff6b9d;text-align:center}
+  h1{margin:6px 0 14px;font-size:28px;color:#ff6b9d}
+  .hidden{display:none}
+  .lvbtn{display:block;width:100%;margin:10px 0;padding:14px;font-size:24px;font-weight:bold;
+    color:#fff;border:none;border-radius:20px;cursor:pointer;box-shadow:0 6px 0 rgba(0,0,0,.2)}
+  .lvbtn:active,.key:active,.main:active{transform:translateY(4px);box-shadow:0 2px 0 rgba(0,0,0,.2)}
+  .prog{font-size:18px;font-weight:bold;color:#7d5fff}
+  .bar{height:12px;background:#eee;border-radius:6px;margin:8px 0 14px;overflow:hidden}
+  .bar div{height:100%;background:#7d5fff;transition:width .3s}
+  #timer{margin:0 0 8px}
+  #timer .tnum{font-size:22px;font-weight:bold;color:#ff4757}
+  #timer .tbar{height:12px;background:#eee;border-radius:6px;overflow:hidden}
+  #timer .tbar div{height:100%;width:100%;background:#ff4757}
+  .q{font-size:52px;font-weight:bold;margin:10px 0;letter-spacing:2px}
+  .ans{height:70px;line-height:62px;font-size:44px;font-weight:bold;border:4px dashed #74b9ff;
+    border-radius:16px;background:#f0faff;margin:6px 0 12px;color:#0984e3}
+  .pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .key{padding:14px 0;font-size:28px;font-weight:bold;border:none;border-radius:16px;
+    background:#feca57;color:#fff;box-shadow:0 5px 0 rgba(0,0,0,.2);cursor:pointer;text-shadow:0 1px 0 rgba(0,0,0,.2)}
+  .key.del{background:#a29bfe;font-size:20px}
+  .key.ok{background:#ff6b9d;font-size:22px}
+  .main{display:block;width:100%;margin-top:14px;padding:14px 20px;font-size:22px;font-weight:bold;color:#fff;background:#ff6b9d;
+    border:none;border-radius:20px;box-shadow:0 6px 0 rgba(0,0,0,.2);cursor:pointer}
+  .main.sub{background:#7d5fff}
+  .fb{font-size:48px;font-weight:bold;margin:20px 0 6px}
+  .fb.ok{color:#2ed573}.fb.ng{color:#ff4757}
+  .big{font-size:64px;font-weight:bold;color:#ff6b9d;margin:10px 0}
+  .pass{font-size:40px;font-weight:bold;padding:10px;border-radius:20px;margin:10px 0}
+  .pass.ok{background:#d6ffe6;color:#16a34a}.pass.ng{background:#ffe3e3;color:#e11d48}
+</style>
+</head>
+<body>
+<div class="card">
+
+  <section id="start">
+    <h1>🌈 たしざん・ひきざん 🌈</h1>
+    <p style="font-size:18px;font-weight:bold">むずかしさを えらんでね!</p>
+    <div id="levels"></div>
+  </section>
+
+  <section id="quiz" class="hidden">
+    <div class="prog" id="prog"></div>
+    <div class="bar"><div id="barin"></div></div>
+    <div id="timer" class="hidden">
+      <div class="tnum" id="tnum"></div>
+      <div class="tbar"><div id="tbarin"></div></div>
+    </div>
+    <div class="q" id="qtext"></div>
+    <div class="ans" id="ans"></div>
+    <div class="pad" id="pad"></div>
+  </section>
+
+  <section id="result" class="hidden">
+    <div class="prog" id="prog2"></div>
+    <div class="q" id="qtext2" style="font-size:40px"></div>
+    <div class="fb" id="fb"></div>
+    <div id="fbsub" style="font-size:22px;font-weight:bold"></div>
+    <button class="main" id="next">つぎへ ▶</button>
+  </section>
+
+  <section id="final" class="hidden">
+    <h1>🎉 けっか 🎉</h1>
+    <div style="font-size:18px"><span id="total"></span>もん中 <b id="score"></b> もん せいかい</div>
+    <div style="margin-top:8px">せいとうりつ</div>
+    <div class="big" id="rate"></div>
+    <div class="pass" id="pass"></div>
+    <button class="main" id="retry">おなじレベルで もういちど 🔁</button>
+    <button class="main sub" id="again">ちがうレベルを えらぶ 🌈</button>
+  </section>
+
+</div>
+
+<script>
+(function(){
+
+  // ============================================================
+  // ★ ここの数字を変えると、各レベルの範囲が変わります ★
+  //
+  //  numMin / numMax       : 問題に出てくる数字の範囲
+  //  addSumMin / addSumMax : 足し算の答えの範囲
+  //  subMin / subMax       : 引き算の答えの範囲
+  //  oneSingle  (任意)     : true だと「2つの数のうち少なくとも一方が一桁」
+  //  timeLimit  (任意)     : 1問の制限時間(秒)。書かなければ無制限
+  //
+  //  レベルを増やすときは、同じ形で行を足すだけです。
+  //  ボタンは書いた順に並びます。名前は "MAX" のような文字もOKです。
+  // ============================================================
+  const CONFIG = {
+    1:   { numMin:1,  numMax:10,  addSumMin:2,  addSumMax:20,  subMin:0, subMax:9 },
+    2:   { numMin:1,  numMax:20,  addSumMin:2,  addSumMax:29,  subMin:0, subMax:19, oneSingle:true },
+    3:   { numMin:11, numMax:20,  addSumMin:22, addSumMax:40,  subMin:0, subMax:9 },
+    4:   { numMin:11, numMax:40,  addSumMin:22, addSumMax:80,  subMin:0, subMax:29 },
+    5:   { numMin:20, numMax:80,  addSumMin:40, addSumMax:160, subMin:0, subMax:60 },
+    6:   { numMin:25, numMax:100, addSumMin:50, addSumMax:200, subMin:0, subMax:75 },
+    MAX: { numMin:25, numMax:100, addSumMin:50, addSumMax:200, subMin:0, subMax:75, timeLimit:10 }
+  };
+
+  // ボタンの色(順番に使います)
+  const COLORS = ["#2ed573","#1dd1a1","#54a0ff","#ffa502","#ff7f50","#ff4757","#8e44ad"];
+
+  // ★ 出題数の設定 ★
+  const ADD_COUNT  = 5;    // 足し算の問題数
+  const SUB_COUNT  = 5;    // 引き算の問題数
+  const PASS_RATE  = 80;   // 合格ライン(%)
+  const TOTAL      = ADD_COUNT + SUB_COUNT;
+
+  // ------------------------------------------------------------
+  // ここから下は、ふつうは変更不要です
+  // ------------------------------------------------------------
+  const $ = id => document.getElementById(id);
+  const rnd = n => Math.floor(Math.random()*n);
+  const show = id => ["start","quiz","result","final"].forEach(s => $(s).classList.toggle("hidden", s!==id));
+
+  let questions=[], idx=0, correct=0, input="", maxLen=3, currentLv="1";
+  let timerId=null, timeLeft=0, limit=0;
+
+  Object.keys(CONFIG).forEach((lv,i)=>{
+    const b=document.createElement("button");
+    b.className="lvbtn";
+    b.style.background=COLORS[i % COLORS.length];
+    b.textContent=`レベル ${lv}`;
+    b.addEventListener("click",()=>startGame(lv));
+    $("levels").appendChild(b);
+  });
+
+  function okPair(c,a,b){
+    return !c.oneSingle || Math.min(a,b)<10;
+  }
+  function addPool(c){
+    const p=[];
+    for(let a=c.numMin;a<=c.numMax;a++)
+      for(let b=c.numMin;b<=c.numMax;b++){
+        const s=a+b;
+        if(s>=c.addSumMin && s<=c.addSumMax && okPair(c,a,b)) p.push({text:`${a} + ${b}`, answer:s});
+      }
+    return p;
+  }
+  function subPool(c){
+    const p=[], lo=Math.max(0,c.subMin);
+    for(let a=c.numMin;a<=c.numMax;a++)
+      for(let b=c.numMin;b<=c.numMax;b++){
+        const d=a-b;
+        if(d>=lo && d<=c.subMax && okPair(c,a,b)) p.push({text:`${a} - ${b}`, answer:d});
+      }
+    return p;
+  }
+
+  function pick(pool,n){
+    const res=[], used=new Set();
+    while(res.length<n){
+      if(used.size>=pool.length) used.clear();
+      const i=rnd(pool.length);
+      if(used.has(i)) continue;
+      used.add(i); res.push(pool[i]);
+    }
+    return res;
+  }
+
+  function build(lv){
+    const c=CONFIG[lv];
+    const ap=addPool(c), sp=subPool(c);
+    if(ap.length===0 || sp.length===0) return null;
+    const list=pick(ap,ADD_COUNT).concat(pick(sp,SUB_COUNT));
+    for(let i=list.length-1;i>0;i--){
+      const j=rnd(i+1); [list[i],list[j]]=[list[j],list[i]];
+    }
+    maxLen=Math.max(...list.map(q=>String(q.answer).length));
+    return list;
+  }
+
+  [1,2,3,4,5,6,7,8,9,"消す",0,"決定"].forEach(k=>{
+    const b=document.createElement("button");
+    b.className="key"+(k==="消す"?" del":k==="決定"?" ok":"");
+    b.textContent=k;
+    b.addEventListener("click",()=>press(k));
+    $("pad").appendChild(b);
+  });
+
+  function press(k){
+    if(k==="消す"){ input=input.slice(0,-1); }
+    else if(k==="決定"){ if(input!=="") submit(false); return; }
+    else if(input.length<maxLen){ input = (input==="0") ? String(k) : input+k; }
+    $("ans").textContent=input;
+  }
+
+  function startGame(lv){
+    currentLv=lv;
+    const q=build(lv);
+    if(!q){ alert("設定の範囲に合う問題が作れません。CONFIGを見直してください。"); return; }
+    questions=q; idx=0; correct=0;
+    limit=CONFIG[lv].timeLimit||0;
+    showQuestion();
+  }
+
+  function stopTimer(){ if(timerId){ clearInterval(timerId); timerId=null; } }
+
+  function startTimer(){
+    stopTimer();
+    if(!limit){ $("timer").classList.add("hidden"); return; }
+    $("timer").classList.remove("hidden");
+    const end=Date.now()+limit*1000;
+    const update=()=>{
+      const left=Math.max(0,end-Date.now());
+      $("tnum").textContent=`⏰ のこり ${Math.ceil(left/1000)} びょう`;
+      $("tbarin").style.width=(left/(limit*1000)*100)+"%";
+      if(left<=0) submit(true);
+    };
+    update();
+    timerId=setInterval(update,100);
+  }
+
+  function showQuestion(){
+    input=""; $("ans").textContent="";
+    $("prog").textContent=`だい ${idx+1} もん / ${TOTAL}`;
+    $("barin").style.width=(idx/TOTAL*100)+"%";
+    $("qtext").textContent=questions[idx].text+" = ?";
+    show("quiz");
+    startTimer();
+  }
+
+  function submit(timeout){
+    stopTimer();
+    const q=questions[idx];
+    const ok = !timeout && Number(input)===q.answer;
+    if(ok) correct++;
+    $("prog2").textContent=`だい ${idx+1} もん / ${TOTAL}`;
+    $("qtext2").textContent=`${q.text} = ${q.answer}`;
+    const fb=$("fb");
+    fb.className="fb "+(ok?"ok":"ng");
+    fb.textContent= ok ? "⭕ せいかい!" : (timeout ? "⏰ じかんぎれ…" : "❌ ざんねん…");
+    $("fbsub").textContent= ok ? "すごい!" : `こたえは ${q.answer} だよ`;
+    $("next").textContent = idx===TOTAL-1 ? "けっかを みる ▶" : "つぎへ ▶";
+    show("result");
+  }
+
+  $("next").addEventListener("click",()=>{
+    idx++;
+    if(idx>=TOTAL) finish(); else showQuestion();
+  });
+
+  function finish(){
+    const rate=Math.round(correct/TOTAL*100);
+    $("total").textContent=TOTAL;
+    $("score").textContent=correct;
+    $("rate").textContent=rate+"%";
+    const passed=rate>=PASS_RATE;
+    const p=$("pass");
+    p.className="pass "+(passed?"ok":"ng");
+    p.textContent= passed ? "🌟 ごうかく! 🌟" : "😢 ふごうかく";
+    show("final");
+  }
+
+  $("retry").addEventListener("click",()=>startGame(currentLv));
+  $("again").addEventListener("click",()=>{ stopTimer(); show("start"); });
+})();
+</script>
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js");
+  });
+}
+</script>
+</body>
+</html>
